@@ -1,0 +1,155 @@
+#! /usr/bin/env bash
+
+## author: torstein, torstein@skybert.net
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+src_dir=$HOME/src
+me=$(basename "${0}")
+conf_file=${HOME}/.${me}.conf
+
+my_open_jira_issues() {
+  local tmp_file=$(mktemp)
+  local jira_file=$HOME/doc/$(date +%Y)/jira.md
+  local number_of_jira_issues=15
+
+  printf "    %s\\n" "<h2>Recent Jira issues assigned to me</h2>"
+  printf "    %s\\n" "<ul>"
+  curl --silent \
+       --user "${SD_JIRA_AUTH}" \
+       "https://${SD_JIRA_BASE_URI}/sr/jira.issueviews:searchrequest-rss/temp/SearchRequest.xml?jqlQuery=assignee%3D${SD_JIRA_USER:-tkj}+ORDER+BY+updatedDate+DESC&tempMax=${SD_JIRA_ISSUE_COUNT:-15}" |
+    xmllint --format - |
+    grep -E '(<title>)' |
+    sed 1d |
+    sed -r 's#.*<title>(.*)</title>#<li>\1</li>#' |
+    sed -r "s#([A-Z]+[-][0-9]+)#<a href=\"${SD_JIRA_BASE_URI}/browse/\1\">\1</a>#"
+  printf "    %s\\n" "</ul>"
+}
+
+my_collection_of_links() {
+  local _cwd=
+  _cwd="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+  local _links="${_cwd}/links.html"
+
+  test -r "${_links}" || return 0
+
+  cat <<EOF
+    <ul>
+EOF
+
+  cat "${_links}" |
+    while read -r l; do
+      printf "      <li>%s</li>\\n" "${l}"
+    done
+
+  cat <<EOF
+    </ul>
+EOF
+}
+
+my_latest_commits() {
+  local since=3.days
+  echo "    <h2>My commits the last ${since//\./\ }</h2>"
+  local git_user=$USER
+  git_user=$(sed -n 's#.*email [=] ##p' /home/torstein/.gitconfig)
+
+  find "${src_dir}" -maxdepth 3 -name .git -type d |
+    sort |
+    while read -r f; do
+      cd "$(dirname "$f")" || exit 1
+      diff=$(git log \
+                 --oneline \
+                 --pretty=format:"%s ~ %ai ~ %h" \
+                 --no-merges \
+                 --author "${git_user}" \
+                 --since "${since}")
+
+      repo=$(dirname "$f" | sed "s#${src_dir}/##")
+
+      if [ -n "${diff}" ]; then
+        printf "    <h3>%s</h3>\n" "${repo}"
+        printf "    <ul>\n"
+        echo "${diff}" |
+          while read -r l ; do
+            printf "      <li>%s</li>\n" "${l}" |
+              sed -r "s#([A-Z]+[-][0-9]+)#<a href=\"${SD_JIRA_BASE_URI}/browse/\1\">\1</a>#"
+          done
+        printf "    </ul>\n"
+      fi
+    done
+}
+
+todays_comics() {
+  # User Friendly available between 1998 and 2013
+  local uf=
+  end_year=2013
+  start_year=1998
+  range=$((end_year - start_year + 1))
+  random_year=$((start_year + RANDOM % range))
+  uf=https://michal.sapka.me/userfriendly/${random_year}$(date +%m%d).gif
+  lunch="https://www.tu.no/api/widgets/comics?name=lunch&date=$(date --iso)"
+  cat <<EOF
+    <h2>User Friendly</h2>
+    <div>
+      <img src="${uf}" alt="userfriendly" class="centered"/>
+    </div>
+    <h2>Lunch</h2>
+    <div>
+      <a href="${lunch}">
+        <img src="${lunch}" alt="lunch" class="centered" style="width: 1000px"/>
+      </a>
+    </div>
+EOF
+}
+
+read_user_input() {
+  test -r "${conf_file}" && source "${conf_file}"
+}
+
+main() {
+  read_user_input
+
+  cat <<EOF
+<!DOCTYPE html PUBLIC
+"-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"
+>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta name="author" content="Torstein Krause Johansen"/>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <link rel="stylesheet" type="text/css" href="http://skybert.net/theme/styles/skybert.css" />
+    <title>
+      Welcome to $(hostname)
+    </title>
+    <style type="text/css">
+      ul li { display: inline; }
+      ul li::after { content: " ~"; }
+      body { font-size: 1em; }
+      .tag { color: #660000; }
+    </style>
+  </head>
+  <body>
+    <h1>Welcome to $(hostname)</h1>
+EOF
+  my_collection_of_links
+  my_latest_commits
+  my_open_jira_issues
+  todays_comics
+
+  cat <<EOF
+    <hr/>
+    <p>
+      Generated @ $(LC_ALL=${date_locale-C} date) on ${HOSTNAME},
+      uptime: $(uptime)
+    </p>
+    <hr/>
+  </body>
+</html>
+
+EOF
+}
+
+main "$@"
