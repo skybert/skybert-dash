@@ -9,17 +9,40 @@ set -o pipefail
 src_dir=$HOME/src
 me=$(basename "${0}")
 conf_file=${HOME}/.${me}.conf
+required_cmds=(
+  curl
+  git
+  siege
+  xmllint
+)
+
+ensure_sanity() {
+  for req_cmd in "${required_cmds[@]}"; do
+    command -v "${req_cmd}" &> /dev/null || {
+      printf "%s needs ${req_cmd}\\n" "${me}"
+      exit 1
+    }
+  done
+
+  test -r "${conf_file}" || {
+    printf \
+      "No conf file %s, will depend on environment variables.\\n" \
+      "${conf_file}"
+  }
+}
 
 my_open_jira_issues() {
   local tmp_file=$(mktemp)
   local jira_file=$HOME/doc/$(date +%Y)/jira.md
   local number_of_jira_issues=15
 
+  local jira_uri="https://${SD_JIRA_BASE_URI}/sr/jira.issueviews:searchrequest-rss/temp/SearchRequest.xml?jqlQuery=assignee%3D${SD_JIRA_USER:-tkj}+ORDER+BY+updatedDate+DESC&tempMax=${SD_JIRA_ISSUE_COUNT:-15}"
+
   printf "    %s\\n" "<h2>Recent Jira issues assigned to me</h2>"
   printf "    %s\\n" "<ul>"
   curl --silent \
        --user "${SD_JIRA_AUTH}" \
-       "https://${SD_JIRA_BASE_URI}/sr/jira.issueviews:searchrequest-rss/temp/SearchRequest.xml?jqlQuery=assignee%3D${SD_JIRA_USER:-tkj}+ORDER+BY+updatedDate+DESC&tempMax=${SD_JIRA_ISSUE_COUNT:-15}" |
+       "${jira_uri}" |
     xmllint --format - |
     grep -E '(<title>)' |
     sed 1d |
@@ -110,6 +133,7 @@ read_user_input() {
 
 main() {
   read_user_input
+  ensure_sanity
 
   cat <<EOF
 <!DOCTYPE html PUBLIC
