@@ -1,5 +1,22 @@
 #! /usr/bin/env bash
 
+## skybert-dash - Creates the Skybert Dashboard, a start page for your
+## web browser.
+##
+## Example usage:
+##
+##   $ skybert-dash > ~/www/index.html 
+##
+## Example ~/.skybert-dash.conf, reading the password from the pass
+## Unix password manager.
+##
+## SD_JIRA_BASE_URI=https://jira.example.com
+## SD_JIRA_USER=lisa
+## SD_JIRA_ISSUE_COUNT=15
+## SD_JIRA_AUTH=${SD_JIRA_USER}:$(pass jira/lisa)
+##
+## The settings can also be set as Unix environment variables.
+##
 ## author: torstein, torstein@skybert.net
 
 set -o errexit
@@ -36,7 +53,7 @@ my_open_jira_issues() {
   local jira_file=$HOME/doc/$(date +%Y)/jira.md
   local number_of_jira_issues=15
 
-  local jira_uri="https://${SD_JIRA_BASE_URI}/sr/jira.issueviews:searchrequest-rss/temp/SearchRequest.xml?jqlQuery=assignee%3D${SD_JIRA_USER:-tkj}+ORDER+BY+updatedDate+DESC&tempMax=${SD_JIRA_ISSUE_COUNT:-15}"
+  local jira_uri="${SD_JIRA_BASE_URI}/sr/jira.issueviews:searchrequest-rss/temp/SearchRequest.xml?jqlQuery=assignee%3D${SD_JIRA_USER:-tkj}+ORDER+BY+updatedDate+DESC&tempMax=${SD_JIRA_ISSUE_COUNT:-15}"
 
   printf "    %s\\n" "<h2>Recent Jira issues assigned to me</h2>"
   printf "    %s\\n" "<ul>"
